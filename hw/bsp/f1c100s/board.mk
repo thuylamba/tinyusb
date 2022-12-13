@@ -14,7 +14,6 @@ CFLAGS += \
   -Wno-float-equal \
   -DCFG_TUSB_MCU=OPT_MCU_F1C100S \
   -Wno-error=cast-align \
-  -Wno-error=address-of-packed-member \
   $(DEFINES)
 
 LD_FILE = hw/mcu/allwinner/f1c100s/f1c100s.ld
