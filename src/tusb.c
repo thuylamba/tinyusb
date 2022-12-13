@@ -30,7 +30,6 @@
 
 #include "tusb.h"
 #include "common/tusb_private.h"
-
 // TODO clean up
 #if CFG_TUD_ENABLED
 #include "device/usbd_pvt.h"

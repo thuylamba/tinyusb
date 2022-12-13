@@ -14,7 +14,6 @@ ifeq (,$(findstring $(FAMILY),esp32s2 esp32s3 rp2040))
 # ---------------------------------------
 
 LIBS_GCC ?= -lgcc -lm -lnosys
-
 # libc
 LIBS += $(LIBS_GCC)
 
@@ -53,12 +52,12 @@ CFLAGS := $(filter-out -flto,$(CFLAGS))
 endif
 
 ifneq ($(LD_FILE),)
-LDFLAGS_LD_FILE ?= -Wl,-T,$(TOP)/$(LD_FILE)
+LDFLAGS_LD_FILE ?= -T $(TOP)/$(LD_FILE)
 endif
 
-LDFLAGS += $(CFLAGS) $(LDFLAGS_LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+LDFLAGS += $(CFLAGS) $(LDFLAGS_LD_FILE) -Wl,-cref,-Map=$@.map #-Wl,-cref -Wl,-gc-sections
 ifneq ($(SKIP_NANOLIB), 1)
-LDFLAGS += -specs=nosys.specs -specs=nano.specs
+#LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif
 
 ASFLAGS += $(CFLAGS)
@@ -69,8 +68,8 @@ SRC_S := $(SRC_S:.S=.s)
 # Due to GCC LTO bug https://bugs.launchpad.net/gcc-arm-embedded/+bug/1747966
 # assembly file should be placed first in linking order
 # '_asm' suffix is added to object of assembly file
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
+OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
 
 # Verbose mode
 ifeq ("$(V)","1")
@@ -97,26 +96,29 @@ else
 endif
 
 $(BUILD)/$(PROJECT).elf: $(OBJ)
-	@echo LINK $@
-	@$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+	echo LINK $@
+	$(CC) $(LDFLAGS_LD_FILE) -nostdlib  -Wl,-cref,-Map=$@.map -o $@ $^ -lgcc 
+	$(SIZE) $@
+#$(CC) -o $@ $(LDFLAGS) $^ -lgcc #-Wl,--start-group $(LIBS) -Wl,--end-group
 
 $(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) -O binary $^ $@
+	echo CREATE $@
+	$(OBJCOPY) -v -O binary $^ $@
+	$(MKBIN) $@
 
 $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) -O ihex $^ $@
+	echo CREATE $@
+	$(OBJCOPY) -O ihex $^ $@
 
 # UF2 generation, iMXRT need to strip to text only before conversion
 ifeq ($(FAMILY),imxrt)
 $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) -O ihex -R .flash_config -R .ivt $^ $(BUILD)/$(PROJECT)-textonly.hex
+	echo CREATE $@
+	$(OBJCOPY) -O ihex -R .flash_config -R .ivt $^ $(BUILD)/$(PROJECT)-textonly.hex
 	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $(BUILD)/$(PROJECT)-textonly.hex
 else
 $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).hex
-	@echo CREATE $@
+	echo CREATE $@
 	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $^
 endif
 
@@ -127,20 +129,20 @@ copy-artifact: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex $(BUILD)/$(PROJEC
 # to be used to compile all .c files.
 vpath %.c . $(TOP)
 $(BUILD)/obj/%.o: %.c
-	@echo CC $(notdir $@)
-	@$(CC) $(CFLAGS) -c -MD -o $@ $<
+	echo CC $(notdir $@)
+	$(CC) $(CFLAGS) -c -MD -o $@ $<
 
 # ASM sources lower case .s
 vpath %.s . $(TOP)
 $(BUILD)/obj/%_asm.o: %.s
-	@echo AS $(notdir $@)
-	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+	echo AS $(notdir $@)
+	$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 # ASM sources upper case .S
 vpath %.S . $(TOP)
 $(BUILD)/obj/%_asm.o: %.S
-	@echo AS $(notdir $@)
-	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+	echo AS $(notdir $@)
+	$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 endif
 

@@ -50,7 +50,7 @@ endif
 # Can be set by board, default to ARM GCC
 CROSS_COMPILE ?= arm-none-eabi-
 # Allow for -Os to be changed by board makefiles in case -Os is not allowed
-CFLAGS_OPTIMIZED ?= -Os
+CFLAGS_OPTIMIZED ?= -g -ggdb -Wall -O3
 
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
@@ -79,7 +79,7 @@ SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
 INC   += $(TOP)/$(FAMILY_PATH)
 
 # Compiler Flags
-CFLAGS += \
+#CFLAGS += \
   -ggdb \
   -fdata-sections \
   -ffunction-sections \

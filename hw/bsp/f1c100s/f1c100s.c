@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include <malloc.h>
+#include <printf.h>
 #include <irqflags.h>
 #include <f1c100s-irq.h>
 #include "bsp/board.h"
@@ -45,8 +46,8 @@ void board_init(void)
 	do_init_mem_pool();
   f1c100s_intc_init();
   timer_init();
-  printf("Timer INIT done\n");
-  arch_local_irq_enable();
+  lprintf("Timer INIT done\n");
+  //arch_local_irq_enable();
 }
 
 // No LED, no button

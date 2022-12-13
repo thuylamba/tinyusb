@@ -3,21 +3,17 @@ DEPS_SUBMODULES += hw/mcu/allwinner
 DEFINES += -D__ARM32_ARCH__=5 -D__ARM926EJS__
 
 CFLAGS += \
-  -ffreestanding \
-  -std=gnu99 \
   -march=armv5te \
   -mtune=arm926ej-s \
   -mfloat-abi=soft \
   -marm \
   -mno-thumb-interwork \
   -Wno-unused-parameter \
-  -Wno-float-equal \
   -DCFG_TUSB_MCU=OPT_MCU_F1C100S \
-  -Wno-error=cast-align \
   $(DEFINES)
 
 LD_FILE = hw/mcu/allwinner/f1c100s/f1c100s.ld
-LDFLAGS += -nostdlib -lgcc
+LDFLAGS += -nostdlib # -lgcc
 MCU_DIR = hw/mcu/allwinner/f1c100s
 
 SRC_C += \
@@ -31,12 +27,14 @@ SRC_C += \
 	$(MCU_DIR)/machine/sys-spi-flash.c \
 	$(MCU_DIR)/machine/f1c100s-intc.c \
 	$(MCU_DIR)/lib/malloc.c \
+	$(MCU_DIR)/lib/strlen.c \
 	$(MCU_DIR)/lib/printf.c 
 
 SRC_S += \
-  $(MCU_DIR)/machine/start.S \
 	$(MCU_DIR)/lib/memcpy.S \
-	$(MCU_DIR)/lib/memset.S
+	$(MCU_DIR)/lib/memmove.S \
+	$(MCU_DIR)/lib/memset.S	\
+  $(MCU_DIR)/machine/start.S
 
 INC += \
 	$(TOP)/$(MCU_DIR)/include \

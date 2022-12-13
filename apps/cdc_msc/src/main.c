@@ -25,8 +25,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-
+#include <printf.h>
 #include "bsp/board.h"
 #include "tusb.h"
 
@@ -53,20 +52,25 @@ void cdc_task(void);
 /*------------- MAIN -------------*/
 int main(void)
 {
-  board_init();
+	lprintf("thanh debug\n");
+	board_init();
 
-  // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+	lprintf("[%s][%d]\n", __func__, __LINE__);
+	// init device stack on configured roothub port
+	tud_init(BOARD_TUD_RHPORT);
+	lprintf("[%s][%d]\n", __func__, __LINE__);
 
-  while (1)
-  {
-    tud_task(); // tinyusb device task
-    led_blinking_task();
+	while (1)
+	{
+		lprintf("[%s][%d]\n", __func__, __LINE__);
+		tud_task(); // tinyusb device task
+		led_blinking_task();
 
-    cdc_task();
-  }
+		lprintf("[%s][%d]\n", __func__, __LINE__);
+		cdc_task();
+	}
 
-  return 0;
+	return 0;
 }
 
 //--------------------------------------------------------------------+

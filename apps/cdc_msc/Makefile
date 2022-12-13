@@ -1,4 +1,5 @@
 include ../../tools/top.mk
+include ../../tools/f1c100s/tools.mk
 include ../make.mk
 
 INC += \
