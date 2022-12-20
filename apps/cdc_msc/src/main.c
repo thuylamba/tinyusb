@@ -55,18 +55,14 @@ int main(void)
 	lprintf("thanh debug\n");
 	board_init();
 
-	lprintf("[%s][%d]\n", __func__, __LINE__);
 	// init device stack on configured roothub port
 	tud_init(BOARD_TUD_RHPORT);
-	lprintf("[%s][%d]\n", __func__, __LINE__);
 
 	while (1)
 	{
-		lprintf("[%s][%d]\n", __func__, __LINE__);
 		tud_task(); // tinyusb device task
-		led_blinking_task();
+		//	led_blinking_task();
 
-		lprintf("[%s][%d]\n", __func__, __LINE__);
 		cdc_task();
 	}
 
