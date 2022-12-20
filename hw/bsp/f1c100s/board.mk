@@ -28,6 +28,7 @@ SRC_C += \
 	$(MCU_DIR)/machine/f1c100s-intc.c \
 	$(MCU_DIR)/lib/malloc.c \
 	$(MCU_DIR)/lib/strlen.c \
+	$(MCU_DIR)/lib/dma.c \
 	$(MCU_DIR)/lib/printf.c 
 
 SRC_S += \
