@@ -47,7 +47,7 @@ void board_init(void)
   f1c100s_intc_init();
   timer_init();
   lprintf("Timer INIT done\n");
-  //arch_local_irq_enable();
+  arch_local_irq_enable();
 }
 
 // No LED, no button
