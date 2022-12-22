@@ -27,6 +27,7 @@ SRC_C += \
 	$(MCU_DIR)/machine/sys-spi-flash.c \
 	$(MCU_DIR)/machine/f1c100s-intc.c \
 	$(MCU_DIR)/machine/f1c100s-sdc.c \
+	$(MCU_DIR)/machine/f1c100s-gpio.c \
 	$(MCU_DIR)/lib/malloc.c \
 	$(MCU_DIR)/lib/strlen.c \
 	$(MCU_DIR)/lib/dma.c \
