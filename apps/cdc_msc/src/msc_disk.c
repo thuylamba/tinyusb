@@ -25,12 +25,14 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
-
+#include "printf.h"
+#include "f1c100s-sdc.h"
+#include "sdcard.h"
 #if CFG_TUD_MSC
 
 // whether host does safe-eject
 static bool ejected = false;
-
+static bool _g_initial = false;
 // Some MCU doesn't have enough 8KB SRAM to store the whole disk
 // We will use Flash as read-only disk with board that has
 // CFG_EXAMPLE_MSC_READONLY defined
@@ -138,6 +140,7 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 // return true allowing host to read/write this LUN e.g SD card inserted
 bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
+	lprintf("Debug [%s][%d]\n", __func__, __LINE__);
   (void) lun;
 
   // RAM disk is ready until ejected
@@ -155,7 +158,19 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
 {
   (void) lun;
-
+	if(!_g_initial) {	// get sdcard
+		lprintf("Init SDCARD [%s][%d]\n", __func__, __LINE__);
+		sdcard_t info = {0, };
+		info.sdc_base = F1C100S_SDC0_BASE;
+		info.voltage = MMC_VDD_27_36;
+		info.width = MMC_BUS_WIDTH_1;
+		info.clock = 50000000;		
+		if(sdcard_detect(&info) > 0) {
+			lprintf("Init Done [%s][%d]\n", __func__, __LINE__);
+			_g_initial = true;
+		}
+		lprintf("Debug [%s][%d]\n", __func__, __LINE__);
+	}
   *block_count = DISK_BLOCK_NUM;
   *block_size  = DISK_BLOCK_SIZE;
 }
@@ -165,6 +180,7 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
 bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
 {
+	lprintf("Debug [%s][%d]\n", __func__, __LINE__);
   (void) lun;
   (void) power_condition;
 
@@ -233,6 +249,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 // - READ10 and WRITE10 has their own callbacks
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
 {
+	lprintf("Debug [%s][%d]\n", __func__, __LINE__);
   // read10 & write10 has their own callback and MUST not be handled here
 
   void const* response = NULL;
