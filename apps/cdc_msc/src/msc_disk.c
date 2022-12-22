@@ -22,20 +22,77 @@
  * THE SOFTWARE.
  *
  */
-
+#include <inttypes.h>
+#include <stdlib.h>
 #include "bsp/board.h"
 #include "tusb.h"
 #include "printf.h"
+#include "f1c100s/reg-ccu.h"
+#include "sys-clock.h"
+#include "f1c100s-gpio.h"
 #include "f1c100s-sdc.h"
 #include "sdcard.h"
+
 #if CFG_TUD_MSC
+
+// #define CFG_EXAMPLE_MSC_READONLY
+#define SDCARD_LUN_0_MAX_BLOCK 500000
 
 // whether host does safe-eject
 static bool ejected = false;
-static bool _g_initial = false;
+static bool initial = false;
+
+static sdcard_t sdcard[2] = {
+	{
+		.sdc_base = F1C100S_SDC0_BASE,
+		.voltage = MMC_VDD_27_36,
+		.width = MMC_BUS_WIDTH_1,
+		.clock = 50000000,
+		.version = MMC_VERSION_SD	
+	}, 
+	{
+		.sdc_base = F1C100S_SDC0_BASE,
+    .voltage = MMC_VDD_27_36,
+    .width = MMC_BUS_WIDTH_1,
+    .clock = 50000000,
+		.version = MMC_VERSION_SD	
+	}
+};
+
+bool disk_initialize(uint8_t lun)
+{
+  clk_reset_set(CCU_BUS_SOFT_RST0, 8);
+  clk_enable(CCU_BUS_CLK_GATE0, 8);
+  clk_reset_clear(CCU_BUS_SOFT_RST0, 8);
+  //
+  gpio_init(GPIOF, PIN1 | PIN2 | PIN3, GPIO_MODE_AF2, GPIO_PULL_NONE, GPIO_DRV_3);
+  //
+  if (sdcard_detect(&sdcard[0]))
+  {
+		memcpy(&sdcard[1], &sdcard[0], sizeof(sdcard_t));
+		// init sdcard[0]
+		if(sdcard[0].blk_cnt >= SDCARD_LUN_0_MAX_BLOCK) 
+		{
+			sdcard[0].blk_cnt = SDCARD_LUN_0_MAX_BLOCK;
+			sdcard[0].capacity = sdcard[0].read_bl_len * SDCARD_LUN_0_MAX_BLOCK;
+		}
+		// init sdcard[1]
+		sdcard[1].blk_cnt -= sdcard[0].blk_cnt;
+		sdcard[1].capacity -= sdcard[0].capacity;
+		for(int i = 0; i < sizeof(sdcard) / sizeof(sdcard_t); i++) {
+			lprintf("sdcard[%d].read_bl_len = [%d]\n", i, sdcard[i].read_bl_len);
+			lprintf("sdcard[%d].write_bl_len = [%d]\n", i, sdcard[i].write_bl_len);
+			lprintf("sdcard[%d].blk_cnt = %" PRId64 "\n", i, sdcard[i].blk_cnt);
+			lprintf("sdcard[%d].capacity = %" PRId64 "\n", i, sdcard[i].capacity);
+			lprintf("sdcard[%d].high_capacity = %d\n", i, sdcard[i].high_capacity);
+			lprintf("sdcard[%d].tran_speed = %d\n", i, sdcard[i].tran_speed);
+		}
+    return true;
+  }
+  return false;
+}
 // Some MCU doesn't have enough 8KB SRAM to store the whole disk
 // We will use Flash as read-only disk with board that has
-// CFG_EXAMPLE_MSC_READONLY defined
 
 #define README_CONTENTS \
 "This is tinyusb's MassStorage Class demo.\r\n\r\n\
@@ -125,6 +182,7 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
 {
+	lprintf("Debug [%s][%d]\n", __func__, __LINE__);
   (void) lun;
 
   const char vid[] = "TinyUSB";
@@ -140,7 +198,6 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 // return true allowing host to read/write this LUN e.g SD card inserted
 bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
-	lprintf("Debug [%s][%d]\n", __func__, __LINE__);
   (void) lun;
 
   // RAM disk is ready until ejected
@@ -157,22 +214,16 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 // Application update block count and block size
 void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
 {
-  (void) lun;
-	if(!_g_initial) {	// get sdcard
-		lprintf("Init SDCARD [%s][%d]\n", __func__, __LINE__);
-		sdcard_t info = {0, };
-		info.sdc_base = F1C100S_SDC0_BASE;
-		info.voltage = MMC_VDD_27_36;
-		info.width = MMC_BUS_WIDTH_1;
-		info.clock = 50000000;		
-		if(sdcard_detect(&info) > 0) {
-			lprintf("Init Done [%s][%d]\n", __func__, __LINE__);
-			_g_initial = true;
+	if(initial == false)
+	{
+		if(disk_initialize(lun))
+		{
+			initial = true;
+			lprintf("Init sdcard [%d] is done...\n", lun);
 		}
-		lprintf("Debug [%s][%d]\n", __func__, __LINE__);
 	}
-  *block_count = DISK_BLOCK_NUM;
-  *block_size  = DISK_BLOCK_SIZE;
+	*block_count = sdcard[lun].blk_cnt;
+	*block_size = sdcard[lun].read_bl_len;
 }
 
 // Invoked when received Start Stop Unit command
@@ -203,14 +254,18 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-  (void) lun;
-
   // out of ramdisk
-  if ( lba >= DISK_BLOCK_NUM ) return -1;
-
-  uint8_t const* addr = msc_disk[lba] + offset;
-  memcpy(buffer, addr, bufsize);
-
+  if ( lba >= sdcard[lun].blk_cnt ) return -1;
+	// read
+	uint64_t count = bufsize / sdcard[lun].read_bl_len;
+	uint8_t *buff = (uint8_t *)malloc(bufsize * sizeof(uint8_t));
+	uint64_t result = sdcard_read(&sdcard[lun], buff, lba, count);
+	if(result != count) {
+		free(buff);
+		return -1;
+	}
+	memcpy(buffer, buff + offset, bufsize);
+	free(buff);
   return (int32_t) bufsize;
 }
 
@@ -229,14 +284,18 @@ bool tud_msc_is_writable_cb (uint8_t lun)
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
-  (void) lun;
-
   // out of ramdisk
-  if ( lba >= DISK_BLOCK_NUM ) return -1;
-
+	if ( lba >= sdcard[lun].blk_cnt ) return -1;
+	
 #ifndef CFG_EXAMPLE_MSC_READONLY
+	// write
+	uint64_t count = bufsize / sdcard[lun].read_bl_len;
+	uint64_t result = 0;
+	result = sdcard_write(&sdcard[lun], (uint8_t*)buffer, lba, count);
+#if 0
   uint8_t* addr = msc_disk[lba] + offset;
   memcpy(addr, buffer, bufsize);
+#endif
 #else
   (void) lba; (void) offset; (void) buffer;
 #endif
