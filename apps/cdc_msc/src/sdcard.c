@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include "f1c100s-sdc.h"
 #include "sdcard.h"
-
+#include "printf.h"
 static inline void sdelay(int loops);
 static int mmc_status(sdcard_t *card);
 static uint64_t mmc_read_blocks(sdcard_t *card, uint8_t *buf, uint64_t start, uint64_t blkcnt);
@@ -203,8 +203,9 @@ static uint64_t mmc_write_blocks(sdcard_t *card, uint8_t *buf, uint64_t start, u
     dat.flag = MMC_DATA_WRITE;
     dat.blksz = card->write_bl_len;
     dat.blkcnt = blkcnt;
-    if (!sdc_transfer(card->sdc_base, &cmd, &dat))
+    if (!sdc_transfer(card->sdc_base, &cmd, &dat)) {
         return 0;
+		}
     do
     {
         status = mmc_status(card);
@@ -217,8 +218,9 @@ static uint64_t mmc_write_blocks(sdcard_t *card, uint8_t *buf, uint64_t start, u
         cmd.cmdidx = MMC_STOP_TRANSMISSION;
         cmd.cmdarg = 0;
         cmd.resptype = MMC_RESP_R1B;
-        if (!sdc_transfer(card->sdc_base, &cmd, NULL))
+        if (!sdc_transfer(card->sdc_base, &cmd, NULL)) {
             return 0;
+				}
     }
     return blkcnt;
 }

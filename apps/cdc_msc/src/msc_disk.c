@@ -42,147 +42,67 @@
 static bool ejected = false;
 static bool initial = false;
 
-static sdcard_t sdcard[2] = {
+enum {
+	SDCARD_FATFS = 0,
+	SDCARD_SECFS = 1,
+	SDCARD_MAX
+};
+static sdcard_t sdcard[SDCARD_MAX] = {
 	{
 		.sdc_base = F1C100S_SDC0_BASE,
 		.voltage = MMC_VDD_27_36,
 		.width = MMC_BUS_WIDTH_1,
-		.clock = 50000000,
-		.version = MMC_VERSION_SD	
+		.clock = 48000000,
+		.version = MMC_VERSION_SD_2
 	}, 
 	{
 		.sdc_base = F1C100S_SDC0_BASE,
     .voltage = MMC_VDD_27_36,
     .width = MMC_BUS_WIDTH_1,
-    .clock = 50000000,
-		.version = MMC_VERSION_SD	
+		.clock = 48000000,
+		.version = MMC_VERSION_SD_2	
 	}
 };
 
+static void
+SD_IO_Init(void) {
+	gpio_init(GPIOF, PIN0 | PIN1 | PIN2 | PIN3 | PIN4 | PIN5, GPIO_MODE_AF2, GPIO_PULL_NONE, GPIO_DRV_3);
+}
 bool disk_initialize(uint8_t lun)
 {
-  clk_reset_set(CCU_BUS_SOFT_RST0, 8);
   clk_enable(CCU_BUS_CLK_GATE0, 8);
-  clk_reset_clear(CCU_BUS_SOFT_RST0, 8);
+  clk_enable(CCU_BUS_SOFT_RST0, 8);
   //
-  gpio_init(GPIOF, PIN1 | PIN2 | PIN3, GPIO_MODE_AF2, GPIO_PULL_NONE, GPIO_DRV_3);
+	SD_IO_Init();
   //
-  if (sdcard_detect(&sdcard[0]))
-  {
-		memcpy(&sdcard[1], &sdcard[0], sizeof(sdcard_t));
-		// init sdcard[0]
-		if(sdcard[0].blk_cnt >= SDCARD_LUN_0_MAX_BLOCK) 
-		{
-			sdcard[0].blk_cnt = SDCARD_LUN_0_MAX_BLOCK;
-			sdcard[0].capacity = sdcard[0].read_bl_len * SDCARD_LUN_0_MAX_BLOCK;
-		}
-		// init sdcard[1]
-		sdcard[1].blk_cnt -= sdcard[0].blk_cnt;
-		sdcard[1].capacity -= sdcard[0].capacity;
-		for(int i = 0; i < sizeof(sdcard) / sizeof(sdcard_t); i++) {
-			lprintf("sdcard[%d].read_bl_len = [%d]\n", i, sdcard[i].read_bl_len);
-			lprintf("sdcard[%d].write_bl_len = [%d]\n", i, sdcard[i].write_bl_len);
-			lprintf("sdcard[%d].blk_cnt = %" PRId64 "\n", i, sdcard[i].blk_cnt);
-			lprintf("sdcard[%d].capacity = %" PRId64 "\n", i, sdcard[i].capacity);
-			lprintf("sdcard[%d].high_capacity = %d\n", i, sdcard[i].high_capacity);
-			lprintf("sdcard[%d].tran_speed = %d\n", i, sdcard[i].tran_speed);
-		}
-    return true;
-  }
-  return false;
+  if (sdcard_detect(&sdcard[0]) == 0)
+		return false;
+
+	memcpy(&sdcard[1], &sdcard[0], sizeof(sdcard_t));
+	// init sdcard[0]
+	if(sdcard[0].blk_cnt >= SDCARD_LUN_0_MAX_BLOCK) 
+	{
+		sdcard[0].blk_cnt = SDCARD_LUN_0_MAX_BLOCK;
+		sdcard[0].capacity = sdcard[0].read_bl_len * SDCARD_LUN_0_MAX_BLOCK;
+	}
+	// init sdcard[1]
+	sdcard[1].blk_cnt -= sdcard[0].blk_cnt;
+	sdcard[1].capacity -= sdcard[0].capacity;
+	for(int i = 0; i < sizeof(sdcard) / sizeof(sdcard_t); i++) 
+	{
+		lprintf("sdcard[%d].read_bl_len = [%d]\n", i, sdcard[i].read_bl_len);
+		lprintf("sdcard[%d].write_bl_len = [%d]\n", i, sdcard[i].write_bl_len);
+		lprintf("sdcard[%d].blk_cnt = %" PRId64 "\n", i, sdcard[i].blk_cnt);
+		lprintf("sdcard[%d].capacity = %" PRId64 "\n", i, sdcard[i].capacity);
+		lprintf("sdcard[%d].high_capacity = %d\n", i, sdcard[i].high_capacity);
+		lprintf("sdcard[%d].tran_speed = %d\n", i, sdcard[i].tran_speed);
+	}
+	return true;
 }
-// Some MCU doesn't have enough 8KB SRAM to store the whole disk
-// We will use Flash as read-only disk with board that has
-
-#define README_CONTENTS \
-"This is tinyusb's MassStorage Class demo.\r\n\r\n\
-If you find any bugs or get any questions, feel free to file an\r\n\
-issue at github.com/hathach/tinyusb"
-
-enum
-{
-  DISK_BLOCK_NUM  = 16, // 8KB is the smallest size that windows allow to mount
-  DISK_BLOCK_SIZE = 512
-};
-
-#ifdef CFG_EXAMPLE_MSC_READONLY
-const
-#endif
-uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
-{
-  //------------- Block0: Boot Sector -------------//
-  // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
-  // sector_per_cluster = 1; reserved_sectors = 1;
-  // fat_num            = 1; fat12_root_entry_num = 16;
-  // sector_per_fat     = 1; sector_per_track = 1; head_num = 1; hidden_sectors = 0;
-  // drive_number       = 0x80; media_type = 0xf8; extended_boot_signature = 0x29;
-  // filesystem_type    = "FAT12   "; volume_serial_number = 0x1234; volume_label = "TinyUSB MSC";
-  // FAT magic code at offset 510-511
-  {
-      0xEB, 0x3C, 0x90, 0x4D, 0x53, 0x44, 0x4F, 0x53, 0x35, 0x2E, 0x30, 0x00, 0x02, 0x01, 0x01, 0x00,
-      0x01, 0x10, 0x00, 0x10, 0x00, 0xF8, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x29, 0x34, 0x12, 0x00, 0x00, 'T' , 'i' , 'n' , 'y' , 'U' ,
-      'S' , 'B' , ' ' , 'M' , 'S' , 'C' , 0x46, 0x41, 0x54, 0x31, 0x32, 0x20, 0x20, 0x20, 0x00, 0x00,
-
-      // Zero up to 2 last bytes of FAT magic code
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x55, 0xAA
-  },
-
-  //------------- Block1: FAT12 Table -------------//
-  {
-      0xF8, 0xFF, 0xFF, 0xFF, 0x0F // // first 2 entries must be F8FF, third entry is cluster end of readme file
-  },
-
-  //------------- Block2: Root Directory -------------//
-  {
-      // first entry is volume label
-      'T' , 'i' , 'n' , 'y' , 'U' , 'S' , 'B' , ' ' , 'M' , 'S' , 'C' , 0x08, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4F, 0x6D, 0x65, 0x43, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      // second entry is readme file
-      'R' , 'E' , 'A' , 'D' , 'M' , 'E' , ' ' , ' ' , 'T' , 'X' , 'T' , 0x20, 0x00, 0xC6, 0x52, 0x6D,
-      0x65, 0x43, 0x65, 0x43, 0x00, 0x00, 0x88, 0x6D, 0x65, 0x43, 0x02, 0x00,
-      sizeof(README_CONTENTS)-1, 0x00, 0x00, 0x00 // readme's files size (4 Bytes)
-  },
-
-  //------------- Block3: Readme Content -------------//
-  README_CONTENTS
-};
-
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
 {
-	lprintf("Debug [%s][%d]\n", __func__, __LINE__);
   (void) lun;
 
   const char vid[] = "TinyUSB";
@@ -231,7 +151,6 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
 bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
 {
-	lprintf("Debug [%s][%d]\n", __func__, __LINE__);
   (void) lun;
   (void) power_condition;
 
@@ -289,13 +208,12 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 	
 #ifndef CFG_EXAMPLE_MSC_READONLY
 	// write
-	uint64_t count = bufsize / sdcard[lun].read_bl_len;
-	uint64_t result = 0;
-	result = sdcard_write(&sdcard[lun], (uint8_t*)buffer, lba, count);
-#if 0
-  uint8_t* addr = msc_disk[lba] + offset;
-  memcpy(addr, buffer, bufsize);
-#endif
+	uint64_t count = bufsize / sdcard[lun].write_bl_len;
+	uint64_t result = sdcard_write(&sdcard[lun], (uint8_t*)buffer, lba, count);
+	if(result != count) 
+	{
+		lprintf("[%s][%d] Write sdcard is failed..\n", __func__, __LINE__);
+	}
 #else
   (void) lba; (void) offset; (void) buffer;
 #endif
@@ -308,7 +226,6 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 // - READ10 and WRITE10 has their own callbacks
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
 {
-	lprintf("Debug [%s][%d]\n", __func__, __LINE__);
   // read10 & write10 has their own callback and MUST not be handled here
 
   void const* response = NULL;
@@ -319,6 +236,28 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 
   switch (scsi_cmd[0])
   {
+		case SCSI_CMD_TEST_UNIT_READY:
+			break;
+		case SCSI_CMD_INQUIRY:
+			break;
+		case SCSI_CMD_MODE_SELECT_6:
+			break;
+		case SCSI_CMD_MODE_SENSE_6:
+			break;
+		case SCSI_CMD_START_STOP_UNIT:
+			break;
+		case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
+			break;
+		case SCSI_CMD_READ_CAPACITY_10:
+			break;
+		case SCSI_CMD_REQUEST_SENSE:
+			break;
+		case SCSI_CMD_READ_FORMAT_CAPACITY:
+			break;
+		case SCSI_CMD_READ_10:
+			break;
+		case SCSI_CMD_WRITE_10:
+			break;
     default:
       // Set Sense = Invalid Command Operation
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
@@ -329,7 +268,7 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
   }
 
   // return resplen must not larger than bufsize
-  if ( resplen > bufsize ) resplen = bufsize;
+  if ( resplen > (int32_t)bufsize ) resplen = bufsize;
 
   if ( response && (resplen > 0) )
   {
