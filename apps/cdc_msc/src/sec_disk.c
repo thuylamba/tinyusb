@@ -1,0 +1,10 @@
+#include <inttypes.h>
+#include <stdlib.h>
+#include "bsp/board.h"
+#include "tusb.h"
+#include "printf.h"
+#include "f1c100s/reg-ccu.h"
+#include "sys-clock.h"
+#include "f1c100s-gpio.h"
+#include "f1c100s-sdc.h"
+#include "sdcard.h"
