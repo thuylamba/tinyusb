@@ -145,7 +145,8 @@
 	url = https://github.com/Infineon/mtb-xmclib-cat3.git
 [submodule "hw/mcu/allwinner"]
 	path = hw/mcu/allwinner
-	url = https://github.com/hathach/allwinner_driver.git
+	url = https://github.com/thuylamba/allwinner.git
+	branch = master
 [submodule "hw/mcu/raspberry_pi/Pico-PIO-USB"]
 	path = hw/mcu/raspberry_pi/Pico-PIO-USB
 	url = https://github.com/sekigon-gonnoc/Pico-PIO-USB.git

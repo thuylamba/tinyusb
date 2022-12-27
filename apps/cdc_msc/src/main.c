@@ -28,7 +28,7 @@
 #include <printf.h>
 #include "bsp/board.h"
 #include "tusb.h"
-
+#include "printf.h"
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -111,19 +111,24 @@ void cdc_task(void)
   // if ( tud_cdc_connected() )
   {
     // connected and there are data available
-    if ( tud_cdc_available() )
+		uint32_t _cdc_rx_count = 0;
+    if ( (_cdc_rx_count = tud_cdc_available()) )
     {
+			lprintf("Thanh Debug [%s][%d] [%d]\n", __func__, __LINE__, _cdc_rx_count);
       // read data
-      char buf[512];
-      uint32_t count = tud_cdc_read(buf, sizeof(buf));
-      (void) count;
-
+			char *buf = (char *)malloc(_cdc_rx_count * sizeof(char));
+      uint32_t count = tud_cdc_read(buf, _cdc_rx_count);
+			if(count != _cdc_rx_count) 
+			{
+				lprintf("Thanh Debug [%s][%d] is failed..\n", __func__, __LINE__);
+			}
+			free(buf);
       // Echo back
       // Note: Skip echo by commenting out write() and write_flush()
       // for throughput test e.g
       //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
-      tud_cdc_write(buf, count);
-      tud_cdc_write_flush();
+      //tud_cdc_write(buf, count);
+      //tud_cdc_write_flush();
     }
   }
 }
